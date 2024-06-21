@@ -98,7 +98,7 @@ function main() {
     };
 
     const extrudedImage = new ExtrudedImage(img, options);
-    const { outline, bounds } = extrudedImage.traceOutline(img);
+    const { outline } = extrudedImage.traceOutline(img);
     currentOutline = outline;
 
     if (currentMesh) {
@@ -107,7 +107,7 @@ function main() {
     scene.add(extrudedImage);
     currentMesh = extrudedImage;
 
-    drawOutline(currentOutline, canvas2D, bounds, img);
+    drawOutline(currentOutline, canvas2D, img);
   }
 
   function animate() {
@@ -290,7 +290,6 @@ function setupEventListeners(
 function drawOutline(
   outline: [number, number][],
   canvas: HTMLCanvasElement,
-  bounds: { minX: number; minY: number; maxX: number; maxY: number },
   originalImage: HTMLImageElement,
 ) {
   const ctx = canvas.getContext('2d');
@@ -298,8 +297,8 @@ function drawOutline(
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const imageWidth = bounds.maxX - bounds.minX;
-  const imageHeight = bounds.maxY - bounds.minY;
+  const imageWidth = originalImage.width;
+  const imageHeight = originalImage.height;
   const imageAspectRatio = imageWidth / imageHeight;
   const canvasAspectRatio = canvas.width / canvas.height;
 
@@ -332,8 +331,8 @@ function drawOutline(
   ctx.beginPath();
   outline.forEach(([x, y], i) => {
     const method = i === 0 ? 'moveTo' : 'lineTo';
-    const scaledX = (x - bounds.minX) * scaleX + offsetX;
-    const scaledY = (y - bounds.minY) * scaleY + offsetY;
+    const scaledX = x * scaleX + offsetX;
+    const scaledY = y * scaleY + offsetY;
     ctx[method](scaledX, scaledY);
   });
   ctx.closePath();
