@@ -62,6 +62,7 @@ function setupThreeJS(canvas: HTMLCanvasElement) {
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(canvas.width, canvas.height);
   renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   const controls = new OrbitControls(camera, renderer.domElement);
   camera.position.z = 5;
   return { scene, camera, renderer, controls };
@@ -123,6 +124,18 @@ function traceOutline(img: HTMLImageElement): [number, number][] {
   const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
   const data = imageData.data;
 
+  // Apply threshold
+  const threshold = 128;
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+    if (alpha < threshold) {
+      data[i + 3] = 0; // Fully transparent
+    } else {
+      data[i + 3] = 255; // Fully opaque
+    }
+  }
+  tempCtx.putImageData(imageData, 0, 0);
+
   const outline: [number, number][] = [];
   const visited = new Set<string>();
 
@@ -130,15 +143,15 @@ function traceOutline(img: HTMLImageElement): [number, number][] {
     if (x < 0 || x >= img.width || y < 0 || y >= img.height) return false;
     const index = (y * img.width + x) * 4;
     return (
-      data[index + 3] > 128 && // Check if pixel is not mostly transparent
+      data[index + 3] === 255 && // Check if pixel is fully opaque
       (x === 0 ||
         y === 0 ||
         x === img.width - 1 ||
         y === img.height - 1 ||
-        data[((y - 1) * img.width + x) * 4 + 3] <= 128 ||
-        data[((y + 1) * img.width + x) * 4 + 3] <= 128 ||
-        data[(y * img.width + x - 1) * 4 + 3] <= 128 ||
-        data[(y * img.width + x + 1) * 4 + 3] <= 128)
+        data[((y - 1) * img.width + x) * 4 + 3] === 0 ||
+        data[((y + 1) * img.width + x) * 4 + 3] === 0 ||
+        data[(y * img.width + x - 1) * 4 + 3] === 0 ||
+        data[(y * img.width + x + 1) * 4 + 3] === 0)
     );
   }
 
@@ -270,6 +283,7 @@ function createTexture(img: HTMLImageElement) {
     loadedTexture.needsUpdate = true;
   });
   texture.flipY = false; // Flip the texture vertically
+  texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
