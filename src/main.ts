@@ -143,15 +143,15 @@ function traceOutline(img: HTMLImageElement): [number, number][] {
     if (x < 0 || x >= img.width || y < 0 || y >= img.height) return false;
     const index = (y * img.width + x) * 4;
     return (
-      data[index + 3] === 255 && // Check if pixel is fully opaque
+      data[index + 3] > 128 && // Check if pixel is not mostly transparent
       (x === 0 ||
         y === 0 ||
         x === img.width - 1 ||
         y === img.height - 1 ||
-        data[((y - 1) * img.width + x) * 4 + 3] === 0 ||
-        data[((y + 1) * img.width + x) * 4 + 3] === 0 ||
-        data[(y * img.width + x - 1) * 4 + 3] === 0 ||
-        data[(y * img.width + x + 1) * 4 + 3] === 0)
+        data[((y - 1) * img.width + x) * 4 + 3] <= 128 ||
+        data[((y + 1) * img.width + x) * 4 + 3] <= 128 ||
+        data[(y * img.width + x - 1) * 4 + 3] <= 128 ||
+        data[(y * img.width + x + 1) * 4 + 3] <= 128)
     );
   }
 
@@ -227,6 +227,67 @@ function drawOutline(outline: [number, number][]) {
   ctx.stroke();
 }
 
+function setUVs(geometry: THREE.ExtrudeGeometry, img: HTMLImageElement) {
+  const { minX, minY, maxX, maxY } = findImageBounds(img);
+  const imgWidth = maxX - minX;
+  const imgHeight = maxY - minY;
+
+  geometry.computeBoundingBox();
+  const bbox = geometry.boundingBox;
+  if (!bbox) throw new Error('Bounding box is null');
+
+  const uvs = geometry.attributes.uv;
+  const positions = geometry.attributes.position;
+  for (let i = 0; i < uvs.count; i++) {
+    const x = positions.getX(i);
+    const y = positions.getY(i);
+    const u = (x - bbox.min.x) / (bbox.max.x - bbox.min.x);
+    const v = 1 - (y - bbox.min.y) / (bbox.max.y - bbox.min.y);
+
+    // map u and v to the actual image content
+    const mappedU = minX / img.width + (u * imgWidth) / img.width;
+    const mappedV = minY / img.height + (v * imgHeight) / img.height;
+
+    uvs.setXY(i, mappedU, mappedV);
+  }
+}
+
+function findImageBounds(img: HTMLImageElement): {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+} {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get 2D context');
+
+  ctx.drawImage(img, 0, 0);
+  const imageData = ctx.getImageData(0, 0, img.width, img.height);
+  const data = imageData.data;
+
+  let minX = img.width,
+    minY = img.height,
+    maxX = 0,
+    maxY = 0;
+
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const alpha = data[(y * img.width + x) * 4 + 3];
+      if (alpha > 0) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+
+  return { minX, minY, maxX: maxX + 1, maxY: maxY + 1 };
+}
+
 function generateGeometry(img: HTMLImageElement, outline: [number, number][]) {
   scene.clear();
 
@@ -242,7 +303,7 @@ function generateGeometry(img: HTMLImageElement, outline: [number, number][]) {
     bevelEnabled: false,
   });
 
-  setUVs(geometry);
+  setUVs(geometry, img);
 
   const texture = createTexture(img);
   const material = new THREE.MeshBasicMaterial({
@@ -257,22 +318,6 @@ function generateGeometry(img: HTMLImageElement, outline: [number, number][]) {
   scene.add(light);
 
   animate();
-}
-
-function setUVs(geometry: THREE.ExtrudeGeometry) {
-  geometry.computeBoundingBox();
-  const bbox = geometry.boundingBox;
-  if (!bbox) throw new Error('Bounding box is null');
-
-  const uvs = geometry.attributes.uv;
-  const positions = geometry.attributes.position;
-  for (let i = 0; i < uvs.count; i++) {
-    const x = positions.getX(i);
-    const y = positions.getY(i);
-    const u = (x - bbox.min.x) / (bbox.max.x - bbox.min.x);
-    const v = 1 - (y - bbox.min.y) / (bbox.max.y - bbox.min.y);
-    uvs.setXY(i, u, v);
-  }
 }
 
 function createTexture(img: HTMLImageElement) {
