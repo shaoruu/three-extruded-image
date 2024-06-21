@@ -2,22 +2,23 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+// Create file input and canvases
+const fileInput = document.createElement('input');
+fileInput.type = 'file';
+fileInput.accept = 'image/png';
+document.body.appendChild(fileInput);
+
+const canvasOriginal = document.createElement('canvas');
 const canvas2D = document.createElement('canvas');
-canvas2D.width = 500;
-canvas2D.height = 500;
-document.body.appendChild(canvas2D);
-
-const ctx2D = canvas2D.getContext('2d');
-if (!ctx2D) {
-  console.error('Could not get 2D context');
-  throw new Error('Canvas context is null');
-}
-
 const canvas3D = document.createElement('canvas');
-canvas3D.width = 500;
-canvas3D.height = 500;
-document.body.appendChild(canvas3D);
 
+[canvasOriginal, canvas2D, canvas3D].forEach((canvas) => {
+  canvas.width = 500;
+  canvas.height = 500;
+  document.body.appendChild(canvas);
+});
+
+// Set up Three.js scene
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
   75,
@@ -27,6 +28,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 const renderer = new THREE.WebGLRenderer({ canvas: canvas3D });
 renderer.setSize(canvas3D.width, canvas3D.height);
+renderer.setClearColor(0x000000, 0);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 camera.position.z = 5;
@@ -34,6 +36,12 @@ camera.position.z = 5;
 function traceBorders(imageSrc: string) {
   const img = new Image();
   img.onload = () => {
+    // Draw original image
+    const ctxOriginal = canvasOriginal.getContext('2d');
+    if (!ctxOriginal) throw new Error('Original canvas context is null');
+    ctxOriginal.clearRect(0, 0, canvasOriginal.width, canvasOriginal.height);
+    ctxOriginal.drawImage(img, 0, 0);
+
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = img.width;
     tempCanvas.height = img.height;
@@ -46,6 +54,11 @@ function traceBorders(imageSrc: string) {
     tempCtx.drawImage(img, 0, 0);
     const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
     const data = imageData.data;
+
+    // Clear the scene
+    while (scene.children.length > 0) {
+      scene.remove(scene.children[0]);
+    }
 
     const outline: [number, number][] = [];
     const visited = new Set<string>();
@@ -123,7 +136,9 @@ function traceBorders(imageSrc: string) {
 
     const scaleFactor = 500 / Math.max(img.width, img.height);
 
+    // Update animate2D to use canvas2D
     function animate2D() {
+      const ctx2D = canvas2D.getContext('2d');
       if (!ctx2D) return;
       ctx2D.clearRect(0, 0, canvas2D.width, canvas2D.height);
       ctx2D.beginPath();
@@ -207,5 +222,18 @@ function traceBorders(imageSrc: string) {
   img.src = imageSrc;
 }
 
-// Usage
-traceBorders('/sword.png');
+// Handle file upload
+fileInput.addEventListener('change', (event) => {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imageSrc = e.target?.result as string;
+      traceBorders(imageSrc);
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+// Remove the initial traceBorders call
+// traceBorders('/sword.png');
