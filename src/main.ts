@@ -16,6 +16,79 @@ function main() {
   let currentMesh: THREE.Mesh | null = null;
   let currentOutline: [number, number][] | null = null;
 
+  let panPosition = { x: 0, y: 0 };
+  let isPanning = false;
+  let startPanPosition = { x: 0, y: 0 };
+  let zoomLevel = 1;
+
+  function drawOriginalImage(img: HTMLImageElement, canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Original canvas context is null');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = false;
+    ctx.save();
+
+    // calculate the centered position
+    const centerX = (canvas.width - img.width * zoomLevel) / 2;
+    const centerY = (canvas.height - img.height * zoomLevel) / 2;
+
+    // apply pan and zoom
+    ctx.translate(panPosition.x + centerX, panPosition.y + centerY);
+    ctx.scale(zoomLevel, zoomLevel);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+  }
+
+  function setupPanAndZoom(canvas: HTMLCanvasElement, img: HTMLImageElement) {
+    canvas.addEventListener('mousedown', (e) => {
+      isPanning = true;
+      startPanPosition = {
+        x: e.clientX - panPosition.x,
+        y: e.clientY - panPosition.y,
+      };
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (isPanning) {
+        panPosition.x = e.clientX - startPanPosition.x;
+        panPosition.y = e.clientY - startPanPosition.y;
+        drawOriginalImage(img, canvas);
+      }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      isPanning = false;
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      isPanning = false;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Calculate mouse position relative to image
+      const imageX = (mouseX - panPosition.x) / zoomLevel;
+      const imageY = (mouseY - panPosition.y) / zoomLevel;
+
+      // Determine zoom direction
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoomLevel = zoomLevel * zoomFactor;
+
+      // Calculate new pan position
+      panPosition.x = mouseX - imageX * newZoomLevel;
+      panPosition.y = mouseY - imageY * newZoomLevel;
+
+      // Update zoom level
+      zoomLevel = newZoomLevel;
+
+      drawOriginalImage(img, canvas);
+    });
+  }
+
   function updateMesh(img: HTMLImageElement) {
     const options: ExtrudedImageOptions = {
       thickness: parseFloat(thicknessSlider.value),
@@ -34,7 +107,7 @@ function main() {
     scene.add(extrudedImage);
     currentMesh = extrudedImage;
 
-    drawOutline(currentOutline, canvas2D, bounds);
+    drawOutline(currentOutline, canvas2D, bounds, img);
   }
 
   function animate() {
@@ -50,7 +123,10 @@ function main() {
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
+        zoomLevel = 1;
+        panPosition = { x: 0, y: 0 };
         drawOriginalImage(img, canvasOriginal);
+        setupPanAndZoom(canvasOriginal, img);
         updateMesh(img);
       };
       img.src = e.target?.result as string;
@@ -118,7 +194,7 @@ function createControls(parent: HTMLElement) {
 function createFileInput(parent: HTMLElement): HTMLInputElement {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'image/png, image/webp';
+  input.accept = 'image/*';
   parent.appendChild(input);
   return input;
 }
@@ -211,35 +287,54 @@ function setupEventListeners(
 }
 
 // Drawing functions
-function drawOriginalImage(img: HTMLImageElement, canvas: HTMLCanvasElement) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Original canvas context is null');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
-  const x = canvas.width / 2 - (img.width / 2) * scale;
-  const y = canvas.height / 2 - (img.height / 2) * scale;
-  ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-}
-
 function drawOutline(
   outline: [number, number][],
   canvas: HTMLCanvasElement,
   bounds: { minX: number; minY: number; maxX: number; maxY: number },
+  originalImage: HTMLImageElement,
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D canvas context is null');
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const imageWidth = bounds.maxX - bounds.minX;
+  const imageHeight = bounds.maxY - bounds.minY;
+  const imageAspectRatio = imageWidth / imageHeight;
+  const canvasAspectRatio = canvas.width / canvas.height;
+
+  let drawWidth, drawHeight, offsetX, offsetY;
+
+  if (imageAspectRatio > canvasAspectRatio) {
+    drawWidth = canvas.width;
+    drawHeight = drawWidth / imageAspectRatio;
+    offsetX = 0;
+    offsetY = (canvas.height - drawHeight) / 2;
+  } else {
+    drawHeight = canvas.height;
+    drawWidth = drawHeight * imageAspectRatio;
+    offsetX = (canvas.width - drawWidth) / 2;
+    offsetY = 0;
+  }
+
+  const scaleX = drawWidth / imageWidth;
+  const scaleY = drawHeight / imageHeight;
+
+  // draw the original image
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.drawImage(originalImage, 0, 0, drawWidth, drawHeight);
+  ctx.restore();
+
+  // draw the outline
   ctx.strokeStyle = 'red';
   ctx.lineWidth = 2;
-
-  const scaleX = canvas.width / (bounds.maxX - bounds.minX);
-  const scaleY = canvas.height / (bounds.maxY - bounds.minY);
-
   ctx.beginPath();
   outline.forEach(([x, y], i) => {
     const method = i === 0 ? 'moveTo' : 'lineTo';
-    ctx[method]((x - bounds.minX) * scaleX, (y - bounds.minY) * scaleY);
+    const scaledX = (x - bounds.minX) * scaleX + offsetX;
+    const scaledY = (y - bounds.minY) * scaleY + offsetY;
+    ctx[method](scaledX, scaledY);
   });
   ctx.closePath();
   ctx.stroke();

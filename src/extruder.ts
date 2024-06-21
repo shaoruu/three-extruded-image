@@ -56,6 +56,7 @@ export class ExtrudedImage extends THREE.Mesh {
       return { outline: [], bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 } };
     }
 
+    tempCtx.imageSmoothingEnabled = false;
     tempCtx.drawImage(img, 0, 0);
     const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
     const data = imageData.data;
