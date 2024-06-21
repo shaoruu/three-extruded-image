@@ -274,7 +274,7 @@ function main() {
     currentMesh = newMesh;
 
     // Draw the outline on the 2D canvas
-    drawOutline(currentOutline, canvas2D, img.width, img.height, bounds);
+    drawOutline(currentOutline, canvas2D, bounds);
   }
 
   function animate() {
