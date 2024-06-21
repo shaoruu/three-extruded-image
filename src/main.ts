@@ -400,8 +400,6 @@ function drawOriginalImage(img: HTMLImageElement, canvas: HTMLCanvasElement) {
 function drawOutline(
   outline: [number, number][],
   canvas: HTMLCanvasElement,
-  imgWidth: number,
-  imgHeight: number,
   bounds: { minX: number; minY: number; maxX: number; maxY: number },
 ) {
   const ctx = canvas.getContext('2d');
