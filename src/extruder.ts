@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 
-export interface ExtruderOptions {
+export type MaterialType = 'basic' | 'standard' | 'lambert' | 'phong';
+
+export interface ExtrudedImageOptions {
   thickness: number;
   size: number;
   bevelEnabled: boolean;
@@ -8,13 +10,37 @@ export interface ExtruderOptions {
   bevelSize?: number;
   bevelSegments?: number;
   alphaThreshold: number;
+  materialType?: MaterialType;
+  materialParams?: {
+    color?: THREE.ColorRepresentation;
+    metalness?: number;
+    roughness?: number;
+    emissive?: THREE.ColorRepresentation;
+    emissiveIntensity?: number;
+    specular?: THREE.ColorRepresentation;
+    shininess?: number;
+  };
 }
 
-export class ImageExtruder {
-  private options: ExtruderOptions;
+export class ExtrudedImage extends THREE.Mesh {
+  private options: ExtrudedImageOptions;
 
-  constructor(options: ExtruderOptions) {
+  constructor(img: HTMLImageElement, options: ExtrudedImageOptions) {
+    const material = ExtrudedImage.createMaterial(options);
+    super(new THREE.BufferGeometry(), material);
     this.options = options;
+    this.generateMesh(img);
+  }
+
+  private generateMesh(img: HTMLImageElement): void {
+    const outlineData = this.traceOutline(img);
+    const geometry = this.createGeometry(img, outlineData);
+    const texture = this.createTexture(img);
+
+    this.geometry = geometry;
+    if (this.material instanceof THREE.Material) {
+      (this.material as any).map = texture;
+    }
   }
 
   public traceOutline(img: HTMLImageElement): {
@@ -197,21 +223,32 @@ export class ImageExtruder {
     }
   }
 
+  private static createMaterial(options: ExtrudedImageOptions): THREE.Material {
+    const { materialType = 'basic', materialParams = {} } = options;
+    const baseParams = {
+      side: THREE.DoubleSide,
+      ...materialParams,
+    };
+
+    switch (materialType) {
+      case 'standard':
+        return new THREE.MeshStandardMaterial(baseParams);
+      case 'lambert':
+        return new THREE.MeshLambertMaterial(baseParams);
+      case 'phong':
+        return new THREE.MeshPhongMaterial(baseParams);
+      case 'basic':
+      default:
+        return new THREE.MeshBasicMaterial(baseParams);
+    }
+  }
+
   private createTexture(img: HTMLImageElement): THREE.Texture {
     const texture = new THREE.TextureLoader().load(img.src);
     texture.flipY = false;
     texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
     return texture;
-  }
-
-  public generateMesh(img: HTMLImageElement): THREE.Mesh {
-    const outlineData = this.traceOutline(img);
-    const geometry = this.createGeometry(img, outlineData);
-    const texture = this.createTexture(img);
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      side: THREE.DoubleSide,
-    });
-    return new THREE.Mesh(geometry, material);
   }
 }

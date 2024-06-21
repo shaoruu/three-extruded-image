@@ -1,65 +1,39 @@
 import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { ExtruderOptions, ImageExtruder } from './extruder';
+import { ExtrudedImage, ExtrudedImageOptions } from './extruder';
 
+// Main function
 function main() {
-  const container = createContainer();
-  const controlsContainer = createControlsContainer(container);
-  const canvasContainer = createCanvasContainer(container);
+  const { controlsContainer, canvasContainer } = createLayout();
+  const { fileInput, thicknessSlider } = createControls(controlsContainer);
+  const { canvasOriginal, canvas2D, canvas3D } =
+    createCanvases(canvasContainer);
 
-  const fileInput = createFileInput(controlsContainer);
-  const thicknessSlider = createThicknessSlider(controlsContainer);
-  const [canvasOriginal, canvas2D, canvas3D] = createCanvases(canvasContainer);
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(
-    75,
-    canvas3D.width / canvas3D.height,
-    0.1,
-    1000,
-  );
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas3D });
-  renderer.setClearColor(0x000000, 0);
-  renderer.setSize(canvas3D.width, canvas3D.height);
-  renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 1;
-  camera.position.z = 5;
-
-  const light = new THREE.PointLight(0xffffff, 1, 100);
-  light.position.set(0, 0, 10);
-  scene.add(light);
-
-  const ambientLight = new THREE.AmbientLight(0x404040);
-  scene.add(ambientLight);
+  const { scene, camera, renderer, controls } = setupThreeJS(canvas3D);
+  setupLighting(scene);
 
   let currentMesh: THREE.Mesh | null = null;
   let currentOutline: [number, number][] | null = null;
 
   function updateMesh(img: HTMLImageElement) {
-    const options: ExtruderOptions = {
+    const options: ExtrudedImageOptions = {
       thickness: parseFloat(thicknessSlider.value),
       size: 3,
       bevelEnabled: false,
       alphaThreshold: 128,
     };
 
-    const imageExtruder = new ImageExtruder(options);
-    const { outline, bounds } = imageExtruder.traceOutline(img);
+    const extrudedImage = new ExtrudedImage(img, options);
+    const { outline, bounds } = extrudedImage.traceOutline(img);
     currentOutline = outline;
-    const newMesh = imageExtruder.generateMesh(img);
 
     if (currentMesh) {
       scene.remove(currentMesh);
     }
-    scene.add(newMesh);
-    currentMesh = newMesh;
+    scene.add(extrudedImage);
+    currentMesh = extrudedImage;
 
-    // Draw the outline on the 2D canvas
     drawOutline(currentOutline, canvas2D, bounds);
   }
 
@@ -98,6 +72,14 @@ function main() {
   );
 }
 
+// Layout creation functions
+function createLayout() {
+  const container = createContainer();
+  const controlsContainer = createControlsContainer(container);
+  const canvasContainer = createCanvasContainer(container);
+  return { container, controlsContainer, canvasContainer };
+}
+
 function createContainer(): HTMLDivElement {
   const container = document.createElement('div');
   container.style.display = 'flex';
@@ -118,25 +100,6 @@ function createControlsContainer(parent: HTMLElement): HTMLDivElement {
   return controlsContainer;
 }
 
-function createFileInput(parent: HTMLElement): HTMLInputElement {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = 'image/png';
-  parent.appendChild(input);
-  return input;
-}
-
-function createThicknessSlider(parent: HTMLElement): HTMLInputElement {
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.min = '0.01';
-  slider.max = '0.5';
-  slider.step = '0.01';
-  slider.value = '0.1';
-  parent.appendChild(slider);
-  return slider;
-}
-
 function createCanvasContainer(parent: HTMLElement): HTMLDivElement {
   const canvasContainer = document.createElement('div');
   canvasContainer.style.display = 'flex';
@@ -145,18 +108,92 @@ function createCanvasContainer(parent: HTMLElement): HTMLDivElement {
   return canvasContainer;
 }
 
-function createCanvases(
-  parent: HTMLElement,
-): [HTMLCanvasElement, HTMLCanvasElement, HTMLCanvasElement] {
-  return ['original', '2d', '3d'].map((id) => {
-    const canvas = document.createElement('canvas');
-    canvas.id = id;
-    canvas.width = canvas.height = 500;
-    parent.appendChild(canvas);
-    return canvas;
-  }) as [HTMLCanvasElement, HTMLCanvasElement, HTMLCanvasElement];
+// Control creation functions
+function createControls(parent: HTMLElement) {
+  const fileInput = createFileInput(parent);
+  const thicknessSlider = createThicknessSlider(parent);
+  return { fileInput, thicknessSlider };
 }
 
+function createFileInput(parent: HTMLElement): HTMLInputElement {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/png, image/webp';
+  parent.appendChild(input);
+  return input;
+}
+
+function createSlider(options: {
+  min: string;
+  max: string;
+  step: string;
+  value: string;
+}): HTMLInputElement {
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  Object.assign(slider, options);
+  return slider;
+}
+
+function createThicknessSlider(parent: HTMLElement): HTMLInputElement {
+  const slider = createSlider({
+    min: '0.01',
+    max: '0.5',
+    step: '0.01',
+    value: '0.1',
+  });
+  parent.appendChild(slider);
+  return slider;
+}
+
+// Canvas creation function
+function createCanvases(parent: HTMLElement) {
+  const [canvasOriginal, canvas2D, canvas3D] = ['original', '2d', '3d'].map(
+    (id) => {
+      const canvas = document.createElement('canvas');
+      canvas.id = id;
+      canvas.width = canvas.height = 500;
+      parent.appendChild(canvas);
+      return canvas;
+    },
+  );
+  return { canvasOriginal, canvas2D, canvas3D };
+}
+
+// Three.js setup function
+function setupThreeJS(canvas: HTMLCanvasElement) {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(
+    75,
+    canvas.width / canvas.height,
+    0.1,
+    1000,
+  );
+  const renderer = new THREE.WebGLRenderer({ canvas });
+  renderer.setClearColor(0x151515);
+  renderer.setSize(canvas.width, canvas.height);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 1;
+  camera.position.z = 5;
+
+  return { scene, camera, renderer, controls };
+}
+
+// Lighting setup function
+function setupLighting(scene: THREE.Scene) {
+  const light = new THREE.PointLight(0xffffff, 1, 100);
+  light.position.set(0, 0, 10);
+  scene.add(light);
+
+  const ambientLight = new THREE.AmbientLight(0x404040);
+  scene.add(ambientLight);
+}
+
+// Event listener setup function
 function setupEventListeners(
   fileInput: HTMLInputElement,
   thicknessSlider: HTMLInputElement,
@@ -173,6 +210,7 @@ function setupEventListeners(
   thicknessSlider.addEventListener('input', handleThicknessChange);
 }
 
+// Drawing functions
 function drawOriginalImage(img: HTMLImageElement, canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Original canvas context is null');
