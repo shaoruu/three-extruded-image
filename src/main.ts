@@ -296,6 +296,7 @@ function drawOutline(
   if (!ctx) throw new Error('2D canvas context is null');
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = false;
 
   const material = mesh.material as THREE.MeshBasicMaterial;
   const texture = material.map;
