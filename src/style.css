@@ -15,8 +15,6 @@ body {
 }
 
 canvas {
-  border: 1px solid #030303;
-  background: white;
 }
 
 input[type='file'] {

@@ -229,7 +229,13 @@ function createCanvases(parent: HTMLElement) {
       const canvas = document.createElement('canvas');
       canvas.id = id;
       canvas.width = canvas.height = 500;
-      parent.appendChild(canvas);
+      const container = document.createElement('div');
+      container.style.width = '500px';
+      container.style.height = '500px';
+      container.style.outline = '1px solid #030303';
+      container.style.overflow = 'hidden';
+      container.appendChild(canvas);
+      parent.appendChild(container);
       return canvas;
     },
   );
@@ -292,12 +298,6 @@ function drawOutline(
   canvas: HTMLCanvasElement,
   mesh: THREE.Mesh,
 ) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('2D canvas context is null');
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.imageSmoothingEnabled = false;
-
   const material = mesh.material as THREE.MeshBasicMaterial;
   const texture = material.map;
   if (!texture) {
@@ -314,31 +314,19 @@ function drawOutline(
   const image = texture.source.data;
   const imageWidth = image.width;
   const imageHeight = image.height;
-  const imageAspectRatio = imageWidth / imageHeight;
-  const canvasAspectRatio = canvas.width / canvas.height;
 
-  let drawWidth, drawHeight, offsetX, offsetY;
+  // set canvas size to image size
+  canvas.width = imageWidth;
+  canvas.height = imageHeight;
 
-  if (imageAspectRatio > canvasAspectRatio) {
-    drawWidth = canvas.width;
-    drawHeight = drawWidth / imageAspectRatio;
-    offsetX = 0;
-    offsetY = (canvas.height - drawHeight) / 2;
-  } else {
-    drawHeight = canvas.height;
-    drawWidth = drawHeight * imageAspectRatio;
-    offsetX = (canvas.width - drawWidth) / 2;
-    offsetY = 0;
-  }
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D canvas context is null');
 
-  const scaleX = drawWidth / imageWidth;
-  const scaleY = drawHeight / imageHeight;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = false;
 
   // draw the texture image
-  ctx.save();
-  ctx.translate(offsetX, offsetY);
-  ctx.drawImage(image, 0, 0, drawWidth, drawHeight);
-  ctx.restore();
+  ctx.drawImage(image, 0, 0, imageWidth, imageHeight);
 
   // draw the outline
   ctx.strokeStyle = 'red';
@@ -346,12 +334,20 @@ function drawOutline(
   ctx.beginPath();
   outline.forEach(([x, y], i) => {
     const method = i === 0 ? 'moveTo' : 'lineTo';
-    const scaledX = x * scaleX + offsetX;
-    const scaledY = y * scaleY + offsetY;
-    ctx[method](scaledX, scaledY);
+    ctx[method](x, y);
   });
   ctx.closePath();
   ctx.stroke();
+
+  // scale canvas to fit container
+  const containerWidth = 500;
+  const containerHeight = 500;
+  const scale = Math.min(
+    containerWidth / imageWidth,
+    containerHeight / imageHeight,
+  );
+  canvas.style.transformOrigin = 'top left';
+  canvas.style.transform = `scale(${scale})`;
 }
 
 main();

@@ -99,10 +99,10 @@ export class ExtrudedImage extends THREE.Mesh {
           y === 0 ||
           x === img.width - 1 ||
           y === img.height - 1 ||
-          data[((y - 1) * img.width + x) * 4 + 3] <= threshold ||
-          data[((y + 1) * img.width + x) * 4 + 3] <= threshold ||
-          data[(y * img.width + x - 1) * 4 + 3] <= threshold ||
-          data[(y * img.width + x + 1) * 4 + 3] <= threshold)
+          data[((y - 1) * img.width + x) * 4 + 3] < threshold ||
+          data[((y + 1) * img.width + x) * 4 + 3] < threshold ||
+          data[(y * img.width + x - 1) * 4 + 3] < threshold ||
+          data[(y * img.width + x + 1) * 4 + 3] < threshold)
       );
     }
 
@@ -174,22 +174,22 @@ export class ExtrudedImage extends THREE.Mesh {
   ): THREE.ExtrudeGeometry {
     const { outline, bounds } = outlineData;
     const shape = new THREE.Shape();
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
+
     outline.forEach(([x, y], i) => {
       const method = i === 0 ? 'moveTo' : 'lineTo';
-      const normalizedX = (x - bounds.minX) / (bounds.maxX - bounds.minX);
-      const normalizedY = (y - bounds.minY) / (bounds.maxY - bounds.minY);
+      const normalizedX = (x - bounds.minX) / width;
+      const normalizedY = (y - bounds.minY) / height;
       shape[method](
         (normalizedX - 0.5) * this.options.size,
-        (-normalizedY + 0.5) * this.options.size,
+        (0.5 - normalizedY) * this.options.size,
       );
     });
 
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth: this.options.thickness,
-      bevelEnabled: this.options.bevelEnabled,
-      bevelThickness: this.options.bevelThickness,
-      bevelSize: this.options.bevelSize,
-      bevelSegments: this.options.bevelSegments,
+      bevelEnabled: false,
     });
 
     this.setUVs(geometry, img, bounds);
@@ -210,11 +210,23 @@ export class ExtrudedImage extends THREE.Mesh {
 
     const uvs = geometry.attributes.uv;
     const positions = geometry.attributes.position;
-    for (let i = 0; i < uvs.count; i++) {
+    for (let i = 0; i < positions.count; i++) {
       const x = positions.getX(i);
       const y = positions.getY(i);
-      const u = (x - bbox.min.x) / (bbox.max.x - bbox.min.x);
-      const v = 1 - (y - bbox.min.y) / (bbox.max.y - bbox.min.y);
+      const z = positions.getZ(i);
+
+      let u, v;
+
+      if (Math.abs(z) < 0.001 || Math.abs(z - this.options.thickness) < 0.001) {
+        // Front and back faces
+        u = (x - bbox.min.x) / (bbox.max.x - bbox.min.x);
+        v = 1 - (y - bbox.min.y) / (bbox.max.y - bbox.min.y);
+      } else {
+        // Side faces
+        const angle = Math.atan2(y, x);
+        u = (angle + Math.PI) / (2 * Math.PI);
+        v = z / this.options.thickness;
+      }
 
       // map u and v to the actual image content
       const mappedU = bounds.minX / img.width + (u * imgWidth) / img.width;
@@ -222,6 +234,8 @@ export class ExtrudedImage extends THREE.Mesh {
 
       uvs.setXY(i, mappedU, mappedV);
     }
+
+    geometry.attributes.uv.needsUpdate = true;
   }
 
   private static createMaterial(options: ExtrudedImageOptions): THREE.Material {
