@@ -1,12 +1,13 @@
 {
   "name": "three-extruded-image",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preinstall": "npx only-allow pnpm"
   },
   "devDependencies": {
     "typescript": "^5.2.2",
@@ -14,6 +15,9 @@
   },
   "dependencies": {
     "@types/three": "^0.165.0",
+    "vite-plugin-externalize-deps": "^0.8.0"
+  },
+  "peerDependencies": {
     "three": "^0.165.0"
   }
 }
