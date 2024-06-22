@@ -107,7 +107,7 @@ function main() {
     scene.add(extrudedImage);
     currentMesh = extrudedImage;
 
-    drawOutline(currentOutline, canvas2D, img);
+    drawOutline(currentOutline, canvas2D, extrudedImage);
   }
 
   function animate() {
@@ -290,15 +290,29 @@ function setupEventListeners(
 function drawOutline(
   outline: [number, number][],
   canvas: HTMLCanvasElement,
-  originalImage: HTMLImageElement,
+  mesh: THREE.Mesh,
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D canvas context is null');
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const imageWidth = originalImage.width;
-  const imageHeight = originalImage.height;
+  const material = mesh.material as THREE.MeshBasicMaterial;
+  const texture = material.map;
+  if (!texture) {
+    throw new Error('Texture is null');
+  }
+
+  if (!texture.source.data) {
+    texture.onUpdate = () => {
+      drawOutline(outline, canvas, mesh);
+    };
+    return;
+  }
+
+  const image = texture.source.data;
+  const imageWidth = image.width;
+  const imageHeight = image.height;
   const imageAspectRatio = imageWidth / imageHeight;
   const canvasAspectRatio = canvas.width / canvas.height;
 
@@ -319,10 +333,10 @@ function drawOutline(
   const scaleX = drawWidth / imageWidth;
   const scaleY = drawHeight / imageHeight;
 
-  // draw the original image
+  // draw the texture image
   ctx.save();
   ctx.translate(offsetX, offsetY);
-  ctx.drawImage(originalImage, 0, 0, drawWidth, drawHeight);
+  ctx.drawImage(image, 0, 0, drawWidth, drawHeight);
   ctx.restore();
 
   // draw the outline
