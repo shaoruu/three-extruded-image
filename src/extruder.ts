@@ -20,6 +20,7 @@ export interface ExtrudedImageOptions {
     specular?: THREE.ColorRepresentation;
     shininess?: number;
   };
+  disableDiagonalTracing?: boolean;
 }
 
 export class ExtrudedImage extends THREE.Mesh {
@@ -106,17 +107,24 @@ export class ExtrudedImage extends THREE.Mesh {
       );
     }
 
-    function traceOutline(startX: number, startY: number) {
-      const directions = [
-        [0, -1],
-        [1, -1],
-        [1, 0],
-        [1, 1],
-        [0, 1],
-        [-1, 1],
-        [-1, 0],
-        [-1, -1],
-      ];
+    const traceOutline = (startX: number, startY: number) => {
+      const directions = this.options.disableDiagonalTracing
+        ? [
+            [0, -1],
+            [1, 0],
+            [0, 1],
+            [-1, 0],
+          ]
+        : [
+            [0, -1],
+            [1, -1],
+            [1, 0],
+            [1, 1],
+            [0, 1],
+            [-1, 1],
+            [-1, 0],
+            [-1, -1],
+          ];
       let x = startX,
         y = startY;
       let dir = 0;
@@ -127,8 +135,8 @@ export class ExtrudedImage extends THREE.Mesh {
         updateBounds(x, y);
 
         let found = false;
-        for (let i = 0; i < 8; i++) {
-          const newDir = (dir + i) % 8;
+        for (let i = 0; i < directions.length; i++) {
+          const newDir = (dir + i) % directions.length;
           const [dx, dy] = directions[newDir];
           const newX = x + dx,
             newY = y + dy;
@@ -144,7 +152,7 @@ export class ExtrudedImage extends THREE.Mesh {
 
         if (!found) break;
       } while (!(x === startX && y === startY));
-    }
+    };
 
     let startX = -1,
       startY = -1;
