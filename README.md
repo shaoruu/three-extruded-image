@@ -11,11 +11,48 @@ Given a transparent background `*.png`, construct a [ThreeJS](https://threejs.or
 
 </div>
 
+> [!NOTE]
+> This library is in serving of [Voxelize](https://github.com/voxelize/voxelize), a fullstack voxel engine. Although basic needs is met, there is still some work needed to make it perfect, any PRs are welcomed! 
+
 # Installation
 
 ```bash
 pnpm install three-extruded-image
 ```
+
+
+# Usage
+
+```typescript
+import { ExtrudedImage, type ExtrudedImageOptions } from 'three-extruded-image';
+
+const options: ExtrudedImageOptions = {
+  thickness: 0.3,
+  size: 3,
+};
+const extrudedImage = new ExtrudedImage(image, options);
+
+scene.add(extrudedImage);
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| thickness | number | The depth of the extrusion |
+| size | number | The overall size of the extruded image |
+| bevelEnabled | boolean | Whether to apply beveling to the edges |
+| bevelThickness? | number | The depth of the bevel |
+| bevelSize? | number | The distance from the edge that the bevel extends |
+| bevelSegments? | number | The number of bevel layers |
+| alphaThreshold | number | The alpha value threshold for determining transparency |
+| materialType? | MaterialType | The type of material to use ('basic', 'standard', 'lambert', or 'phong') |
+| materialParams? | object | Additional material parameters |
+| materialParams.color? | THREE.ColorRepresentation | The color of the material |
+| materialParams.metalness? | number | The metalness of the material (for standard material) |
+| materialParams.roughness? | number | The roughness of the material (for standard material) |
+| materialParams.emissive? | THREE.ColorRepresentation | The emissive color of the material |
+| materialParams.emissiveIntensity? | number | The intensity of the emissive color |
+| materialParams.specular? | THREE.ColorRepresentation | The specular color (for phong material) |
+| materialParams.shininess? | number | The shininess of the material (for phong material) |
 
 # Development
 
@@ -45,8 +82,3 @@ pnpm dev
 - [ ] Fix the above issues
 - [ ] Add more controls to demonstrate the library (such as bevel, which is already supported)
 - [ ] Add tests (?)
-
----
-
-> [!NOTE]
-> This library is in serving of [Voxelize](https://github.com/voxelize/voxelize), a fullstack voxel engine. Although basic needs is met, there is still some work needed to make it perfect, any PRs are welcomed! 
