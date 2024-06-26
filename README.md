@@ -12,7 +12,7 @@ Given a transparent background `*.png`, construct a [ThreeJS](https://threejs.or
 </div>
 
 > [!NOTE]
-> This library is in serving of [Voxelize](https://github.com/voxelize/voxelize), a fullstack voxel engine. Although basic needs is met, there is still some work needed to make it perfect, check below! 
+> This library is in serving of [Voxelize](https://github.com/voxelize/voxelize), a fullstack voxel engine. Although basic needs is met, there is still some work needed to make it perfect, any PRs are welcomed! 
 
 
 # Installation
