@@ -37,9 +37,11 @@ pnpm dev
 # Known Issues
 
 1. Either the outline tracing is off, or UV is off, but texture leak a bit on the edges.
+
 ![](/assets/bug1.png)
 
 2. Doesn't work on images that are split into multiple parts.
+
 ![](/assets/bug2.png)
 
 # Todos
