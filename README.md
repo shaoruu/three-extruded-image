@@ -36,7 +36,7 @@ pnpm dev
 
 ![](/assets/bug1.png)
 
-2. Doesn't work on images that are split into multiple parts.
+2. Doesn't work on images that are split into multiple parts. I am currently using an algorithm similar to marching squares to detect the outline, which only works if the image is connected.
 
 ![](/assets/bug2.png)
 
@@ -45,6 +45,8 @@ pnpm dev
 - [ ] Fix the above issues
 - [ ] Add more controls to demonstrate the library (such as bevel, which is already supported)
 - [ ] Add tests (?)
+
+---
 
 > [!NOTE]
 > This library is in serving of [Voxelize](https://github.com/voxelize/voxelize), a fullstack voxel engine. Although basic needs is met, there is still some work needed to make it perfect, any PRs are welcomed! 
