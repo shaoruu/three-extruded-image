@@ -77,6 +77,10 @@ pnpm dev
 
 ![](/assets/bug2.png)
 
+3. Algorithm isn't perfect, doesn't work sometimes.
+
+![](/assets/bug3.png)
+
 # Todos
 
 - [ ] Fix the above issues
