@@ -11,10 +11,6 @@ Given a transparent background `*.png`, construct a [ThreeJS](https://threejs.or
 
 </div>
 
-> [!NOTE]
-> This library is in serving of [Voxelize](https://github.com/voxelize/voxelize), a fullstack voxel engine. Although basic needs is met, there is still some work needed to make it perfect, any PRs are welcomed! 
-
-
 # Installation
 
 ```bash
@@ -49,3 +45,6 @@ pnpm dev
 - [ ] Fix the above issues
 - [ ] Add more controls to demonstrate the library (such as bevel, which is already supported)
 - [ ] Add tests (?)
+
+> [!NOTE]
+> This library is in serving of [Voxelize](https://github.com/voxelize/voxelize), a fullstack voxel engine. Although basic needs is met, there is still some work needed to make it perfect, any PRs are welcomed! 
