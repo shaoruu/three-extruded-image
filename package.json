@@ -1,17 +1,21 @@
 {
   "name": "three-extruded-image",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsup src/index.ts --format cjs,esm --dts-resolve",
     "preview": "vite preview",
     "preinstall": "npx only-allow pnpm"
   },
   "devDependencies": {
+    "tsup": "^8.1.0",
     "typescript": "^5.2.2",
     "vite": "^5.2.0"
   },
