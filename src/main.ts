@@ -2,6 +2,13 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ExtrudedImage, ExtrudedImageOptions } from './extruder';
+import {
+  DirectionalLight,
+  HemisphereLight,
+  PointLight,
+  PlaneGeometry,
+  MeshStandardMaterial,
+} from 'three';
 
 // Main function
 function main() {
@@ -11,8 +18,10 @@ function main() {
 
   const { scene, camera, renderer, controls } = setupThreeJS(canvas3D);
   setupLighting(scene);
+  addGround(scene);
 
   let currentMesh: ExtrudedImage | null = null;
+  let currentImage: HTMLImageElement | null = null;
 
   let panPosition = { x: 0, y: 0 };
   let isPanning = false;
@@ -87,19 +96,29 @@ function main() {
     });
   }
 
-  function updateMesh(img: HTMLImageElement) {
+  function updateMesh(img: HTMLImageElement, thickness?: number) {
     const options: ExtrudedImageOptions = {
-      thickness: parseFloat(thicknessSlider.value),
+      thickness: thickness ?? parseFloat(thicknessSlider.value),
       size: 3,
       alphaThreshold: 128,
+      customMaterial: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        metalness: 0.3,
+        roughness: 0.4,
+        flatShading: false,
+      }),
     };
 
     const extrudedImage = new ExtrudedImage(img, options);
+    extrudedImage.castShadow = true;
+    extrudedImage.receiveShadow = true;
 
     if (currentMesh) {
       scene.remove(currentMesh);
     }
     scene.add(extrudedImage);
+
+    currentImage = img;
     currentMesh = extrudedImage;
   }
 
@@ -128,8 +147,8 @@ function main() {
   }
 
   function handleThicknessChange() {
-    if (currentMesh) {
-      updateMesh((currentMesh.material as THREE.MeshBasicMaterial).map!.image);
+    if (currentImage) {
+      updateMesh(currentImage, parseFloat(thicknessSlider.value));
     }
   }
 
@@ -242,28 +261,62 @@ function setupThreeJS(canvas: HTMLCanvasElement) {
     0.1,
     1000,
   );
-  const renderer = new THREE.WebGLRenderer({ canvas });
-  renderer.setClearColor(0x151515);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setClearColor(0x303030);
   renderer.setSize(canvas.width, canvas.height);
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.autoRotate = true;
   controls.autoRotateSpeed = 1;
-  camera.position.z = 5;
+  camera.position.set(3, 3, 5);
+  controls.update();
 
   return { scene, camera, renderer, controls };
 }
 
 // Lighting setup function
 function setupLighting(scene: THREE.Scene) {
-  const light = new THREE.PointLight(0xffffff, 1, 100);
-  light.position.set(0, 0, 10);
-  scene.add(light);
+  // Brighter hemisphere light
+  const hemiLight = new HemisphereLight(0xffffff, 0x444444, 1);
+  scene.add(hemiLight);
 
-  const ambientLight = new THREE.AmbientLight(0x404040);
-  scene.add(ambientLight);
+  // Brighter main directional light
+  const mainLight = new DirectionalLight(0xffffff, 1.5);
+  mainLight.position.set(5, 5, 5);
+  mainLight.castShadow = true;
+  mainLight.shadow.mapSize.width = 2048;
+  mainLight.shadow.mapSize.height = 2048;
+  scene.add(mainLight);
+
+  // Brighter accent lights
+  const colors = [0xff9999, 0x99ff99, 0x9999ff];
+  colors.forEach((color, index) => {
+    const light = new PointLight(color, 0.8);
+    light.position.set(
+      Math.cos(index * 2.1) * 3,
+      Math.sin(index * 2.1) * 3,
+      Math.sin(index * 1.5) * 3,
+    );
+    scene.add(light);
+  });
+}
+
+function addGround(scene: THREE.Scene) {
+  const groundGeometry = new PlaneGeometry(10, 10);
+  const groundMaterial = new MeshStandardMaterial({
+    color: 0x808080, // Lighter gray
+    roughness: 0.8,
+    metalness: 0.2,
+  });
+  const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -1.5;
+  ground.receiveShadow = true;
+  scene.add(ground);
 }
 
 // Event listener setup function

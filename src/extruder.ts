@@ -7,6 +7,7 @@ export interface ExtrudedImageOptions {
   materialParams?: {
     color?: THREE.ColorRepresentation;
   };
+  customMaterial?: THREE.Material;
 }
 
 export class ExtrudedImage extends THREE.Object3D {
@@ -47,10 +48,19 @@ export class ExtrudedImage extends THREE.Object3D {
       pixelSize,
       this.options.thickness,
     );
-    const material = new THREE.MeshBasicMaterial(this.options.materialParams);
-    material.transparent = true;
-    if (material.map) {
-      material.map.colorSpace = THREE.SRGBColorSpace;
+
+    let material: THREE.Material;
+    if (this.options.customMaterial) {
+      material = this.options.customMaterial;
+    } else {
+      material = new THREE.MeshBasicMaterial({
+        ...this.options.materialParams,
+        transparent: true,
+      });
+      if ('map' in material && material.map) {
+        // @ts-ignore
+        material.map.colorSpace = THREE.SRGBColorSpace;
+      }
     }
     this.material = material;
 
