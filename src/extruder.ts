@@ -48,6 +48,7 @@ export class ExtrudedImage extends THREE.Object3D {
       pixelSize,
       this.options.thickness,
     );
+    geometry.translate(0, 0, this.options.thickness / 2); // Center the geometry
 
     let material: THREE.Material;
     if (this.options.customMaterial) {
@@ -72,7 +73,7 @@ export class ExtrudedImage extends THREE.Object3D {
     this.instancedMesh.position.set(
       aspectRatio >= 1 ? 0 : (-this.options.size * (1 - aspectRatio)) / 2,
       aspectRatio < 1 ? 0 : (this.options.size * (1 - 1 / aspectRatio)) / 2,
-      -this.options.thickness / 2,
+      0, // Remove z-offset
     );
 
     let index = 0;
