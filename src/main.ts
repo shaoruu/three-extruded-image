@@ -7,14 +7,12 @@ import { ExtrudedImage, ExtrudedImageOptions } from './extruder';
 function main() {
   const { controlsContainer, canvasContainer } = createLayout();
   const { fileInput, thicknessSlider } = createControls(controlsContainer);
-  const { canvasOriginal, canvas2D, canvas3D } =
-    createCanvases(canvasContainer);
+  const { canvasOriginal, canvas3D } = createCanvases(canvasContainer);
 
   const { scene, camera, renderer, controls } = setupThreeJS(canvas3D);
   setupLighting(scene);
 
-  let currentMesh: THREE.Mesh | null = null;
-  let currentOutline: [number, number][] | null = null;
+  let currentMesh: ExtrudedImage | null = null;
 
   let panPosition = { x: 0, y: 0 };
   let isPanning = false;
@@ -93,21 +91,16 @@ function main() {
     const options: ExtrudedImageOptions = {
       thickness: parseFloat(thicknessSlider.value),
       size: 3,
-      bevelEnabled: false,
       alphaThreshold: 128,
     };
 
     const extrudedImage = new ExtrudedImage(img, options);
-    const { outline } = extrudedImage.traceOutline(img);
-    currentOutline = outline;
 
     if (currentMesh) {
       scene.remove(currentMesh);
     }
     scene.add(extrudedImage);
     currentMesh = extrudedImage;
-
-    drawOutline(currentOutline, canvas2D, extrudedImage);
   }
 
   function animate() {
@@ -224,22 +217,20 @@ function createThicknessSlider(parent: HTMLElement): HTMLInputElement {
 
 // Canvas creation function
 function createCanvases(parent: HTMLElement) {
-  const [canvasOriginal, canvas2D, canvas3D] = ['original', '2d', '3d'].map(
-    (id) => {
-      const canvas = document.createElement('canvas');
-      canvas.id = id;
-      canvas.width = canvas.height = 500;
-      const container = document.createElement('div');
-      container.style.width = '500px';
-      container.style.height = '500px';
-      container.style.outline = '1px solid #030303';
-      container.style.overflow = 'hidden';
-      container.appendChild(canvas);
-      parent.appendChild(container);
-      return canvas;
-    },
-  );
-  return { canvasOriginal, canvas2D, canvas3D };
+  const [canvasOriginal, canvas3D] = ['original', '3d'].map((id) => {
+    const canvas = document.createElement('canvas');
+    canvas.id = id;
+    canvas.width = canvas.height = 500;
+    const container = document.createElement('div');
+    container.style.width = '500px';
+    container.style.height = '500px';
+    container.style.outline = '1px solid #030303';
+    container.style.overflow = 'hidden';
+    container.appendChild(canvas);
+    parent.appendChild(container);
+    return canvas;
+  });
+  return { canvasOriginal, canvas3D };
 }
 
 // Three.js setup function
@@ -290,64 +281,6 @@ function setupEventListeners(
   });
 
   thicknessSlider.addEventListener('input', handleThicknessChange);
-}
-
-// Drawing functions
-function drawOutline(
-  outline: [number, number][],
-  canvas: HTMLCanvasElement,
-  mesh: THREE.Mesh,
-) {
-  const material = mesh.material as THREE.MeshBasicMaterial;
-  const texture = material.map;
-  if (!texture) {
-    throw new Error('Texture is null');
-  }
-
-  if (!texture.source.data) {
-    texture.onUpdate = () => {
-      drawOutline(outline, canvas, mesh);
-    };
-    return;
-  }
-
-  const image = texture.source.data;
-  const imageWidth = image.width;
-  const imageHeight = image.height;
-
-  // set canvas size to image size
-  canvas.width = imageWidth;
-  canvas.height = imageHeight;
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('2D canvas context is null');
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.imageSmoothingEnabled = false;
-
-  // draw the texture image
-  ctx.drawImage(image, 0, 0, imageWidth, imageHeight);
-
-  // draw the outline
-  ctx.strokeStyle = 'red';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  outline.forEach(([x, y], i) => {
-    const method = i === 0 ? 'moveTo' : 'lineTo';
-    ctx[method](x, y);
-  });
-  ctx.closePath();
-  ctx.stroke();
-
-  // scale canvas to fit container
-  const containerWidth = 500;
-  const containerHeight = 500;
-  const scale = Math.min(
-    containerWidth / imageWidth,
-    containerHeight / imageHeight,
-  );
-  canvas.style.transformOrigin = 'top left';
-  canvas.style.transform = `scale(${scale})`;
 }
 
 main();
