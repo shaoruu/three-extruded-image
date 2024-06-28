@@ -57,3 +57,5 @@ pnpm dev
 
 # visit http://localhost:5173
 ```
+
+Shoutout to [@manthrax](https://discourse.threejs.org/u/manthrax/summary) for the help!
