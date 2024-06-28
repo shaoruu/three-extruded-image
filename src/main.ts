@@ -101,12 +101,14 @@ function main() {
       thickness: thickness ?? parseFloat(thicknessSlider.value),
       size: 3,
       alphaThreshold: 128,
-      customMaterial: new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        metalness: 0.3,
-        roughness: 0.4,
-        flatShading: false,
-      }),
+      // customMaterial: new THREE.MeshStandardMaterial({
+      //   color: 0xffffff,
+      //   metalness: 0.3,
+      //   roughness: 0.4,
+      //   flatShading: false,
+      //   transparent: true,
+      //   alphaTest: 0.5,
+      // }),
     };
 
     const extrudedImage = new ExtrudedImage(img, options);

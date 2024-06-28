@@ -7,12 +7,13 @@ export interface ExtrudedImageOptions {
   materialParams?: {
     color?: THREE.ColorRepresentation;
   };
-  customMaterial?: THREE.Material;
+  customMaterial?: THREE.MeshBasicMaterial | THREE.MeshStandardMaterial;
 }
 
 export class ExtrudedImage extends THREE.Object3D {
   private options: ExtrudedImageOptions;
-  private instancedMesh: THREE.InstancedMesh | null = null;
+
+  public mesh: THREE.Mesh | null = null;
   public material: THREE.Material | null = null;
 
   constructor(img: HTMLImageElement, options: ExtrudedImageOptions) {
@@ -38,77 +39,98 @@ export class ExtrudedImage extends THREE.Object3D {
     context.drawImage(img, 0, 0, width, height);
     const imageData = context.getImageData(0, 0, width, height);
 
-    const aspectRatio = width / height;
-    const pixelSize = this.options.size / Math.max(width, height);
-    const scaleFactor =
-      this.options.size / Math.max(width * pixelSize, height * pixelSize);
+    const pixel = (x: number, y: number) => {
+      const i = (y * width + x) * 4;
+      return imageData.data.slice(i, i + 4);
+    };
+    const isSolid = (x: number, y: number) => {
+      if (x < 0 || y < 0 || x >= width || y >= height) return false;
+      return pixel(x, y)[3] >= this.options.alphaThreshold;
+    };
 
-    const geometry = new THREE.BoxGeometry(
-      pixelSize,
-      pixelSize,
-      this.options.thickness,
+    const vts = [];
+    const uvs = [];
+    const indices = [];
+    const d2 = this.options.thickness / 2;
+    const w = width;
+    const h = height;
+    const sx = 1 / w;
+    const sy = 1 / h;
+
+    // single front and back face
+    let vt = 0;
+    vts.push(0, 0, d2, w, 0, d2, w, h, d2, 0, h, d2);
+    vts.push(0, 0, -d2, w, 0, -d2, w, h, -d2, 0, h, -d2);
+    uvs.push(0, 0, w, 0, w, h, 0, h, 0, 0, w, 0, w, h, 0, h);
+    indices.push(0, 1, 2, 2, 3, 0, 4, 7, 6, 6, 5, 4);
+    vt += 8;
+
+    const pushFace = (x1: number, y1: number, x2: number, y2: number) => {
+      vts.push(x1, y1, -d2, x2, y2, -d2, x2, y2, d2, x1, y1, d2);
+
+      let ux = Math.min(x1, x2);
+      let uy = Math.min(y1, y2);
+
+      ux += y1 < y2 ? -0.5 : 0.5;
+      uy += x2 < x1 ? -0.5 : 0.5;
+
+      uvs.push(ux, uy, ux, uy, ux, uy, ux, uy);
+      indices.push(vt + 0, vt + 1, vt + 2, vt + 2, vt + 3, vt + 0);
+      vt += 4;
+    };
+
+    for (let y = -1; y <= h; y++)
+      for (let x = -1; x <= w; x++) {
+        let left = isSolid(x, y);
+        let right = isSolid(x - 1, y);
+        let top = isSolid(x, y - 1);
+        let bottom = isSolid(x, y);
+        if (!left && right) pushFace(x, y, x, y + 1);
+        if (left && !right) pushFace(x, y + 1, x, y);
+        if (top && !bottom) pushFace(x + 1, y, x, y);
+        if (!top && bottom) pushFace(x, y, x + 1, y);
+      }
+
+    let g = new THREE.BufferGeometry();
+    for (let i = 0; i < uvs.length; i += 2) {
+      uvs[i] *= sx;
+      uvs[i + 1] *= sy;
+    }
+    g.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(vts), 3),
     );
-    geometry.translate(0, 0, this.options.thickness / 2); // Center the geometry
+    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+    g.setIndex(indices);
+    g.computeVertexNormals();
 
-    let material: THREE.Material;
+    let s = Math.max(sx, sy);
+    g.center();
+    g.scale(s, s, 1);
+    g.rotateX(-Math.PI);
+
+    const texture = new THREE.TextureLoader().load(img.src);
+    texture.flipY = false;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.colorSpace = THREE.SRGBColorSpace;
+
     if (this.options.customMaterial) {
-      material = this.options.customMaterial;
+      this.material = this.options.customMaterial;
+      // @ts-ignore
+      this.material.map = texture;
     } else {
-      material = new THREE.MeshBasicMaterial({
-        ...this.options.materialParams,
-        transparent: true,
+      this.material = new THREE.MeshStandardMaterial({
+        map: texture,
+        // transparent: true,
+        alphaTest: this.options.alphaThreshold / 255,
       });
-      if ('map' in material && material.map) {
-        // @ts-ignore
-        material.map.colorSpace = THREE.SRGBColorSpace;
-      }
-    }
-    this.material = material;
-
-    const count = width * height;
-    this.instancedMesh = new THREE.InstancedMesh(geometry, material, count);
-    this.add(this.instancedMesh);
-
-    this.instancedMesh.scale.set(scaleFactor, scaleFactor, 1);
-    this.instancedMesh.position.set(
-      aspectRatio >= 1 ? 0 : (-this.options.size * (1 - aspectRatio)) / 2,
-      aspectRatio < 1 ? 0 : (this.options.size * (1 - 1 / aspectRatio)) / 2,
-      0, // Remove z-offset
-    );
-
-    let index = 0;
-    const matrix = new THREE.Matrix4();
-    const position = new THREE.Vector3();
-    const color = new THREE.Color();
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const i = (y * width + x) * 4;
-        const r = imageData.data[i];
-        const g = imageData.data[i + 1];
-        const b = imageData.data[i + 2];
-        const a = imageData.data[i + 3];
-
-        if (a >= this.options.alphaThreshold) {
-          color.setRGB(r / 255, g / 255, b / 255);
-          const srgb = color.convertSRGBToLinear();
-
-          position.x = x * pixelSize - (width * pixelSize) / 2;
-          position.y = -y * pixelSize + (height * pixelSize) / 2;
-          matrix.setPosition(position);
-          this.instancedMesh.setMatrixAt(index, matrix);
-          this.instancedMesh.setColorAt(index, srgb);
-
-          index++;
-        }
-      }
     }
 
-    this.instancedMesh.count = index;
-    this.instancedMesh.instanceMatrix.needsUpdate = true;
-    if (this.instancedMesh.instanceColor) {
-      this.instancedMesh.instanceColor.needsUpdate = true;
-    }
+    this.mesh = new THREE.Mesh(g, this.material);
+    this.mesh.scale.set(this.options.size, this.options.size, 1);
+    this.add(this.mesh);
   }
 
   getMaterial(): THREE.Material | null {
