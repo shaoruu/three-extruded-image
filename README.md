@@ -29,6 +29,7 @@ import { ExtrudedImage, type ExtrudedImageOptions } from 'three-extruded-image';
 const options: ExtrudedImageOptions = {
   thickness: 0.3,
   size: 3,
+  alphaThreshold: 128,
 };
 const extrudedImage = new ExtrudedImage(image, options);
 
@@ -42,6 +43,7 @@ scene.add(extrudedImage);
 | alphaThreshold | number | The alpha value threshold for determining transparency |
 | materialParams? | object | Additional material parameters |
 | materialParams.color? | THREE.ColorRepresentation | The color of the material |
+| customMaterial? | THREE.MeshBasicMaterial \| THREE.MeshStandardMaterial | Custom material to override default material |
 
 # Development
 
