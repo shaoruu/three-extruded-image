@@ -157,6 +157,8 @@ function main() {
   setupEventListeners(
     fileInput,
     thicknessSlider,
+    canvasOriginal,
+    canvas3D,
     handleFileUpload,
     handleThicknessChange,
   );
@@ -325,6 +327,8 @@ function addGround(scene: THREE.Scene) {
 function setupEventListeners(
   fileInput: HTMLInputElement,
   thicknessSlider: HTMLInputElement,
+  canvasOriginal: HTMLCanvasElement,
+  canvas3D: HTMLCanvasElement,
   handleFileUpload: (file: File) => void,
   handleThicknessChange: () => void,
 ) {
@@ -336,6 +340,23 @@ function setupEventListeners(
   });
 
   thicknessSlider.addEventListener('input', handleThicknessChange);
+
+  [canvasOriginal, canvas3D].forEach((canvas) => {
+    canvas.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer!.dropEffect = 'copy';
+    });
+
+    canvas.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const file = e.dataTransfer!.files[0];
+      if (file && file.type.startsWith('image/')) {
+        handleFileUpload(file);
+      }
+    });
+  });
 }
 
 main();

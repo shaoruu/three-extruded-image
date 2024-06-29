@@ -3,7 +3,7 @@
 
 # `three-extruded-image`
 
-[View it here!!](https://manthrax.github.io/three-extruded-image/js/index.html)
+[View it here!!](https://extrude.create.town)
 
 
 Given a transparent background `*.png`, construct a [ThreeJS](https://threejs.org) mesh of that image, extruded. 
