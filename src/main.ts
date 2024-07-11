@@ -13,7 +13,8 @@ import {
 // Main function
 function main() {
   const { controlsContainer, canvasContainer } = createLayout();
-  const { fileInput, thicknessSlider } = createControls(controlsContainer);
+  const { fileInput, thicknessSlider, legacyCheckbox } =
+    createControls(controlsContainer);
   const { canvasOriginal, canvas3D } = createCanvases(canvasContainer);
 
   const { scene, camera, renderer, controls } = setupThreeJS(canvas3D);
@@ -99,8 +100,9 @@ function main() {
   function updateMesh(img: HTMLImageElement, thickness?: number) {
     const options: ExtrudedImageOptions = {
       thickness: thickness ?? parseFloat(thicknessSlider.value),
-      size: 0.75, // Further reduced from 1 to 0.75
+      size: 0.75,
       alphaThreshold: 128,
+      legacy: legacyCheckbox.checked,
     };
 
     const extrudedImage = new ExtrudedImage(img, options);
@@ -110,7 +112,7 @@ function main() {
     // Add rotation and bobbing animation
     const animate = () => {
       extrudedImage.rotation.y += 0.01;
-      extrudedImage.position.y = Math.sin(Date.now() * 0.002) * 0.025; // Further reduced bobbing amplitude
+      extrudedImage.position.y = Math.sin(Date.now() * 0.002) * 0.025;
       requestAnimationFrame(animate);
     };
     animate();
@@ -154,13 +156,19 @@ function main() {
     }
   }
 
+  function handleLegacyChange() {
+    if (currentImage) {
+      updateMesh(currentImage, parseFloat(thicknessSlider.value));
+    }
+  }
+
   setupEventListeners(
     fileInput,
     thicknessSlider,
-    canvasOriginal,
-    canvas3D,
+    legacyCheckbox,
     handleFileUpload,
     handleThicknessChange,
+    handleLegacyChange,
   );
 }
 
@@ -204,7 +212,8 @@ function createCanvasContainer(parent: HTMLElement): HTMLDivElement {
 function createControls(parent: HTMLElement) {
   const fileInput = createFileInput(parent);
   const thicknessSlider = createThicknessSlider(parent);
-  return { fileInput, thicknessSlider };
+  const legacyCheckbox = createLegacyCheckbox(parent);
+  return { fileInput, thicknessSlider, legacyCheckbox };
 }
 
 function createFileInput(parent: HTMLElement): HTMLInputElement {
@@ -229,13 +238,34 @@ function createSlider(options: {
 
 function createThicknessSlider(parent: HTMLElement): HTMLInputElement {
   const slider = createSlider({
-    min: '0.01',
+    min: '0.001',
     max: '0.5',
     step: '0.01',
-    value: '0.1',
+    value: '0.05',
   });
   parent.appendChild(slider);
   return slider;
+}
+
+function createLegacyCheckbox(parent: HTMLElement): HTMLInputElement {
+  const container = document.createElement('div');
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  container.style.gap = '5px';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.id = 'legacyCheckbox';
+
+  const label = document.createElement('label');
+  label.htmlFor = 'legacyCheckbox';
+  label.textContent = 'Use Legacy Mode';
+
+  container.appendChild(checkbox);
+  container.appendChild(label);
+  parent.appendChild(container);
+
+  return checkbox;
 }
 
 // Canvas creation function
@@ -275,7 +305,7 @@ function setupThreeJS(canvas: HTMLCanvasElement) {
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.autoRotate = false;
-  camera.position.set(1.5, 1.5, 2.5); // Moved camera closer
+  camera.position.set(1.5, 1.5, 2.5);
   controls.update();
 
   return { scene, camera, renderer, controls };
@@ -309,14 +339,14 @@ function setupLighting(scene: THREE.Scene) {
 }
 
 function addGround(scene: THREE.Scene) {
-  const groundGeometry = new THREE.BoxGeometry(1, 0.5, 1); // Increased height to 0.5
+  const groundGeometry = new THREE.BoxGeometry(1, 0.5, 1);
   const groundMaterial = new MeshStandardMaterial({
-    color: 0xd6efd8, // Light green color
+    color: 0xd6efd8,
     roughness: 0.8,
     metalness: 0.2,
   });
   const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-  ground.position.y = -0.75; // Adjusted to half the height of the box
+  ground.position.y = -0.75;
   ground.receiveShadow = true;
   scene.add(ground);
 }
@@ -325,10 +355,10 @@ function addGround(scene: THREE.Scene) {
 function setupEventListeners(
   fileInput: HTMLInputElement,
   thicknessSlider: HTMLInputElement,
-  canvasOriginal: HTMLCanvasElement,
-  canvas3D: HTMLCanvasElement,
+  legacyCheckbox: HTMLInputElement,
   handleFileUpload: (file: File) => void,
   handleThicknessChange: () => void,
+  handleLegacyChange: () => void,
 ) {
   fileInput.addEventListener('change', (event: Event) => {
     const file = (event.target as HTMLInputElement).files?.[0];
@@ -338,23 +368,7 @@ function setupEventListeners(
   });
 
   thicknessSlider.addEventListener('input', handleThicknessChange);
-
-  [canvasOriginal, canvas3D].forEach((canvas) => {
-    canvas.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      e.dataTransfer!.dropEffect = 'copy';
-    });
-
-    canvas.addEventListener('drop', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const file = e.dataTransfer!.files[0];
-      if (file && file.type.startsWith('image/')) {
-        handleFileUpload(file);
-      }
-    });
-  });
+  legacyCheckbox.addEventListener('change', handleLegacyChange);
 }
 
 main();
