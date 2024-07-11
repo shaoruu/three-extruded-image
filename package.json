@@ -16,6 +16,7 @@
     "preinstall": "npx only-allow pnpm"
   },
   "devDependencies": {
+    "three-csm": "^4.2.1",
     "tsup": "^8.1.0",
     "typescript": "^5.2.2",
     "vite": "^5.2.0"

@@ -99,21 +99,21 @@ function main() {
   function updateMesh(img: HTMLImageElement, thickness?: number) {
     const options: ExtrudedImageOptions = {
       thickness: thickness ?? parseFloat(thicknessSlider.value),
-      size: 3,
+      size: 0.75, // Further reduced from 1 to 0.75
       alphaThreshold: 128,
-      // customMaterial: new THREE.MeshStandardMaterial({
-      //   color: 0xffffff,
-      //   metalness: 0.3,
-      //   roughness: 0.4,
-      //   flatShading: false,
-      //   transparent: true,
-      //   alphaTest: 0.5,
-      // }),
     };
 
     const extrudedImage = new ExtrudedImage(img, options);
     extrudedImage.castShadow = true;
     extrudedImage.receiveShadow = true;
+
+    // Add rotation and bobbing animation
+    const animate = () => {
+      extrudedImage.rotation.y += 0.01;
+      extrudedImage.position.y = Math.sin(Date.now() * 0.002) * 0.025; // Further reduced bobbing amplitude
+      requestAnimationFrame(animate);
+    };
+    animate();
 
     if (currentMesh) {
       scene.remove(currentMesh);
@@ -266,7 +266,7 @@ function setupThreeJS(canvas: HTMLCanvasElement) {
     1000,
   );
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setClearColor(0x303030);
+  renderer.setClearColor(0xffffff);
   renderer.setSize(canvas.width, canvas.height);
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -274,9 +274,8 @@ function setupThreeJS(canvas: HTMLCanvasElement) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.autoRotate = true;
-  controls.autoRotateSpeed = 1;
-  camera.position.set(3, 3, 5);
+  controls.autoRotate = false;
+  camera.position.set(1.5, 1.5, 2.5); // Moved camera closer
   controls.update();
 
   return { scene, camera, renderer, controls };
@@ -284,41 +283,40 @@ function setupThreeJS(canvas: HTMLCanvasElement) {
 
 // Lighting setup function
 function setupLighting(scene: THREE.Scene) {
-  // Brighter hemisphere light
-  const hemiLight = new HemisphereLight(0xffffff, 0x444444, 1);
-  scene.add(hemiLight);
+  // Ambient light for overall scene brightness
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+  scene.add(ambientLight);
 
-  // Brighter main directional light
-  const mainLight = new DirectionalLight(0xffffff, 1.5);
+  // Main directional light (simulating sun)
+  const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
   mainLight.position.set(5, 5, 5);
   mainLight.castShadow = true;
-  mainLight.shadow.mapSize.width = 2048;
-  mainLight.shadow.mapSize.height = 2048;
+  mainLight.shadow.mapSize.width = 1024;
+  mainLight.shadow.mapSize.height = 1024;
+  mainLight.shadow.camera.near = 0.5;
+  mainLight.shadow.camera.far = 20;
   scene.add(mainLight);
 
-  // Brighter accent lights
-  const colors = [0xff9999, 0x99ff99, 0x9999ff];
-  colors.forEach((color, index) => {
-    const light = new PointLight(color, 0.8);
-    light.position.set(
-      Math.cos(index * 2.1) * 3,
-      Math.sin(index * 2.1) * 3,
-      Math.sin(index * 1.5) * 3,
-    );
-    scene.add(light);
-  });
+  // Soft fill light
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+  fillLight.position.set(-5, 3, -5);
+  scene.add(fillLight);
+
+  // Subtle rim light
+  const rimLight = new THREE.DirectionalLight(0xffffff, 0.2);
+  rimLight.position.set(0, -5, -5);
+  scene.add(rimLight);
 }
 
 function addGround(scene: THREE.Scene) {
-  const groundGeometry = new PlaneGeometry(10, 10);
+  const groundGeometry = new THREE.BoxGeometry(1, 0.5, 1); // Increased height to 0.5
   const groundMaterial = new MeshStandardMaterial({
-    color: 0x808080, // Lighter gray
+    color: 0xd6efd8, // Light green color
     roughness: 0.8,
     metalness: 0.2,
   });
   const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -1.5;
+  ground.position.y = -0.75; // Adjusted to half the height of the box
   ground.receiveShadow = true;
   scene.add(ground);
 }
