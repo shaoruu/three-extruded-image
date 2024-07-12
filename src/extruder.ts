@@ -76,7 +76,7 @@ export class ExtrudedImage extends THREE.Object3D {
       this.material = this.options.customMaterial;
       (this.material as any).map = this.textures[0];
     } else {
-      this.material = new THREE.MeshStandardMaterial({
+      this.material = new THREE.MeshBasicMaterial({
         map: this.textures[0],
         alphaTest: this.options.alphaThreshold / 255,
       });
