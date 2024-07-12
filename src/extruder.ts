@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GifReader } from 'omggif';
 
 export interface ExtrudedImageOptions {
   thickness: number;
@@ -9,10 +10,19 @@ export interface ExtrudedImageOptions {
   };
   customMaterial?: THREE.MeshBasicMaterial | THREE.MeshStandardMaterial;
   legacy?: boolean;
+  animationSpeed?: number; // frames per second
 }
 
 export class ExtrudedImage extends THREE.Object3D {
   private options: ExtrudedImageOptions;
+  private isGif: boolean = false;
+  private gifFrames: ImageData[] = [];
+  private currentFrame: number = 0;
+  private animationMixer: THREE.AnimationMixer | null = null;
+  private clock: THREE.Clock;
+  private animationId: number | null = null;
+  private textures: THREE.Texture[] = [];
+  private geometries: THREE.BufferGeometry[] = [];
 
   public mesh: THREE.Mesh | null = null;
   public geometry: THREE.BufferGeometry | null = null;
@@ -20,39 +30,136 @@ export class ExtrudedImage extends THREE.Object3D {
 
   constructor(img: HTMLImageElement, options: ExtrudedImageOptions) {
     super();
-    this.options = options;
-    if (options.legacy) {
-      this.generateMeshLegacy(img);
-    } else {
-      this.generateMesh(img);
+    this.options = {
+      animationSpeed: 10, // default 10 fps
+      ...options,
+    };
+    this.clock = new THREE.Clock();
+    this.loadImage(img);
+  }
+
+  private async loadImage(img: HTMLImageElement): Promise<void> {
+    const response = await fetch(img.src);
+    const buffer = await response.arrayBuffer();
+
+    try {
+      const gifReader = new GifReader(new Uint8Array(buffer));
+      this.isGif = true;
+      this.loadGifFrames(gifReader);
+    } catch {
+      this.isGif = false;
+      if (this.options.legacy) {
+        this.generateMeshLegacy(img);
+      } else {
+        this.generateMesh(img);
+      }
     }
   }
 
-  private generateMesh(img: HTMLImageElement): void {
+  private loadGifFrames(gifReader: GifReader): void {
+    const frameCount = gifReader.numFrames();
+    for (let i = 0; i < frameCount; i++) {
+      const frameInfo = gifReader.frameInfo(i);
+      const imageData = new ImageData(gifReader.width, gifReader.height);
+      gifReader.decodeAndBlitFrameRGBA(i, imageData.data);
+      this.gifFrames.push(imageData);
+      // Precompute textures and geometry data
+      this.textures.push(this.createTextureFromImageData(imageData));
+      const geometry = this.createGeometryFromImageData(imageData);
+      this.geometries.push(geometry);
+    }
+    this.generateAnimatedMesh();
+  }
+
+  private generateAnimatedMesh(): void {
+    if (this.options.customMaterial) {
+      this.material = this.options.customMaterial;
+      (this.material as any).map = this.textures[0];
+    } else {
+      this.material = new THREE.MeshStandardMaterial({
+        map: this.textures[0],
+        alphaTest: this.options.alphaThreshold / 255,
+      });
+    }
+
+    this.mesh = new THREE.Mesh(this.geometries[0], this.material);
+    this.mesh.scale.set(this.options.size, this.options.size, 1);
+    this.add(this.mesh);
+
+    this.setupAnimation();
+    this.startAnimation();
+  }
+
+  private setupAnimation(): void {
+    this.animationMixer = new THREE.AnimationMixer(this);
+    const duration =
+      this.gifFrames.length / (this.options.animationSpeed ?? 10);
+    const times = this.gifFrames.map(
+      (_, i) => i * (1 / (this.options.animationSpeed ?? 10)),
+    );
+    const values = this.gifFrames.map((_, i) => i);
+
+    const trackFrame = new THREE.NumberKeyframeTrack(
+      '.currentFrame',
+      times,
+      values,
+    );
+    const clip = new THREE.AnimationClip('gifAnimation', duration, [
+      trackFrame,
+    ]);
+    const action = this.animationMixer.clipAction(clip);
+    action.setLoop(THREE.LoopRepeat, Infinity);
+    action.play();
+  }
+
+  private startAnimation(): void {
+    const animate = () => {
+      const delta = this.clock.getDelta();
+      if (this.animationMixer) {
+        this.animationMixer.update(delta);
+
+        if (
+          this.material &&
+          this.material instanceof THREE.MeshStandardMaterial &&
+          this.mesh
+        ) {
+          const frameIndex =
+            Math.floor(
+              this.animationMixer.time * (this.options.animationSpeed ?? 10),
+            ) % this.gifFrames.length;
+
+          // Update texture
+          this.material.map = this.textures[frameIndex];
+          this.material.needsUpdate = true;
+
+          // Swap entire geometry
+          this.mesh.geometry.dispose(); // Dispose of the old geometry
+          this.mesh.geometry = this.geometries[frameIndex];
+        }
+      }
+      this.animationId = requestAnimationFrame(animate);
+    };
+
+    animate();
+  }
+
+  private createGeometryFromImageData(
+    imageData: ImageData,
+  ): THREE.BufferGeometry {
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) {
       console.error('Could not get 2D context');
-      return;
+      return new THREE.BufferGeometry();
     }
 
-    const width = img.width;
-    const height = img.height;
+    const width = imageData.width;
+    const height = imageData.height;
 
     canvas.width = width;
     canvas.height = height;
 
-    context.drawImage(img, 0, 0, width, height);
-    const imageData = context.getImageData(0, 0, width, height);
-
-    const pixel = (x: number, y: number) => {
-      const i = (y * width + x) * 4;
-      return imageData.data.slice(i, i + 4);
-    };
-    const isSolid = (x: number, y: number) => {
-      if (x < 0 || y < 0 || x >= width || y >= height) return false;
-      return pixel(x, y)[3] >= this.options.alphaThreshold;
-    };
+    context.putImageData(imageData, 0, 0);
 
     const vts = [];
     const uvs = [];
@@ -87,10 +194,10 @@ export class ExtrudedImage extends THREE.Object3D {
 
     for (let y = -1; y <= h; y++)
       for (let x = -1; x <= w; x++) {
-        let left = isSolid(x, y);
-        let right = isSolid(x - 1, y);
-        let top = isSolid(x, y - 1);
-        let bottom = isSolid(x, y);
+        let left = this.isSolid(imageData, x, y);
+        let right = this.isSolid(imageData, x - 1, y);
+        let top = this.isSolid(imageData, x, y - 1);
+        let bottom = this.isSolid(imageData, x, y);
         if (!left && right) pushFace(x, y, x, y + 1);
         if (left && !right) pushFace(x, y + 1, x, y);
         if (top && !bottom) pushFace(x + 1, y, x, y);
@@ -115,28 +222,30 @@ export class ExtrudedImage extends THREE.Object3D {
     g.scale(s, s, 1);
     g.rotateX(-Math.PI);
 
-    const texture = new THREE.TextureLoader().load(img.src);
+    return g;
+  }
+
+  private isSolid(imageData: ImageData, x: number, y: number): boolean {
+    if (x < 0 || y < 0 || x >= imageData.width || y >= imageData.height)
+      return false;
+    const i = (y * imageData.width + x) * 4;
+    return imageData.data[i + 3] >= this.options.alphaThreshold;
+  }
+
+  private createTextureFromImageData(imageData: ImageData): THREE.Texture {
+    const texture = new THREE.DataTexture(
+      imageData.data,
+      imageData.width,
+      imageData.height,
+      THREE.RGBAFormat,
+    );
+    texture.needsUpdate = true;
     texture.flipY = false;
     texture.minFilter = THREE.NearestFilter;
     texture.magFilter = THREE.NearestFilter;
     texture.generateMipmaps = false;
     texture.colorSpace = THREE.SRGBColorSpace;
-
-    if (this.options.customMaterial) {
-      this.material = this.options.customMaterial;
-      // @ts-ignore
-      this.material.map = texture;
-    } else {
-      this.material = new THREE.MeshStandardMaterial({
-        map: texture,
-        // transparent: true,
-        alphaTest: this.options.alphaThreshold / 255,
-      });
-    }
-
-    this.mesh = new THREE.Mesh(g, this.material);
-    this.mesh.scale.set(this.options.size, this.options.size, 1);
-    this.add(this.mesh);
+    return texture;
   }
 
   getMaterial(): THREE.Material | null {
@@ -369,5 +478,55 @@ export class ExtrudedImage extends THREE.Object3D {
     texture.minFilter = THREE.NearestFilter;
     texture.magFilter = THREE.NearestFilter;
     return texture;
+  }
+
+  private generateMesh(img: HTMLImageElement): void {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) {
+      console.error('Could not get 2D context');
+      return;
+    }
+
+    const width = img.width;
+    const height = img.height;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    context.drawImage(img, 0, 0, width, height);
+    const imageData = context.getImageData(0, 0, width, height);
+
+    const geometry = this.createGeometryFromImageData(imageData);
+    const texture = this.createTextureFromImageData(imageData);
+
+    if (this.options.customMaterial) {
+      this.material = this.options.customMaterial;
+      (this.material as any).map = texture;
+    } else {
+      this.material = new THREE.MeshStandardMaterial({
+        map: texture,
+        alphaTest: this.options.alphaThreshold / 255,
+      });
+    }
+
+    this.mesh = new THREE.Mesh(geometry, this.material);
+    this.mesh.scale.set(this.options.size, this.options.size, 1);
+    this.add(this.mesh);
+  }
+
+  public stopAnimation(): void {
+    if (this.animationId !== null) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
+    }
+  }
+
+  public dispose(): void {
+    this.stopAnimation();
+    this.material?.dispose();
+    this.textures.forEach((texture) => texture.dispose());
+    this.mesh?.parent?.remove(this.mesh);
+    this.mesh = null;
   }
 }
