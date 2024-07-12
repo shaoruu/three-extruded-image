@@ -120,7 +120,8 @@ export class ExtrudedImage extends THREE.Object3D {
 
         if (
           this.material &&
-          this.material instanceof THREE.MeshStandardMaterial &&
+          (this.material instanceof THREE.MeshStandardMaterial ||
+            this.material instanceof THREE.MeshBasicMaterial) &&
           this.mesh
         ) {
           const frameIndex =
@@ -267,7 +268,7 @@ export class ExtrudedImage extends THREE.Object3D {
       // @ts-ignore
       this.material.map = texture;
     } else {
-      this.material = new THREE.MeshStandardMaterial({
+      this.material = new THREE.MeshBasicMaterial({
         map: texture,
       });
     }
