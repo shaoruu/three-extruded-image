@@ -10,7 +10,7 @@ Given a transparent background `*.png`, construct a [ThreeJS](https://threejs.or
 
 ![NPM Version](https://img.shields.io/npm/v/three-extruded-image)
 
-![](/assets/demo.png)
+![](/assets/animation.gif)
 
 </div>
 
