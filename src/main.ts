@@ -15,7 +15,7 @@ function main() {
   const { controlsContainer, canvasContainer } = createLayout();
   const { fileInput, thicknessSlider, legacyCheckbox } =
     createControls(controlsContainer);
-  const { canvasOriginal, canvas3D } = createCanvases(canvasContainer);
+  const { imgOriginal, canvas3D } = createImageAndCanvas(canvasContainer);
 
   const { scene, camera, renderer, controls } = setupThreeJS(canvas3D);
   setupLighting(scene);
@@ -29,26 +29,15 @@ function main() {
   let startPanPosition = { x: 0, y: 0 };
   let zoomLevel = 1;
 
-  function drawOriginalImage(img: HTMLImageElement, canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Original canvas context is null');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.save();
-
-    // calculate the centered position
-    const centerX = (canvas.width - img.width * zoomLevel) / 2;
-    const centerY = (canvas.height - img.height * zoomLevel) / 2;
-
-    // apply pan and zoom
-    ctx.translate(panPosition.x + centerX, panPosition.y + centerY);
-    ctx.scale(zoomLevel, zoomLevel);
-    ctx.drawImage(img, 0, 0);
-    ctx.restore();
+  function updateOriginalImage(img: HTMLImageElement) {
+    imgOriginal.src = img.src;
+    imgOriginal.style.objectFit = 'contain';
+    imgOriginal.style.width = '100%';
+    imgOriginal.style.height = '100%';
   }
 
-  function setupPanAndZoom(canvas: HTMLCanvasElement, img: HTMLImageElement) {
-    canvas.addEventListener('mousedown', (e) => {
+  function setupPanAndZoom(img: HTMLImageElement) {
+    imgOriginal.addEventListener('mousedown', (e) => {
       isPanning = true;
       startPanPosition = {
         x: e.clientX - panPosition.x,
@@ -56,25 +45,25 @@ function main() {
       };
     });
 
-    canvas.addEventListener('mousemove', (e) => {
+    imgOriginal.addEventListener('mousemove', (e) => {
       if (isPanning) {
         panPosition.x = e.clientX - startPanPosition.x;
         panPosition.y = e.clientY - startPanPosition.y;
-        drawOriginalImage(img, canvas);
+        updateOriginalImage(img);
       }
     });
 
-    canvas.addEventListener('mouseup', () => {
+    imgOriginal.addEventListener('mouseup', () => {
       isPanning = false;
     });
 
-    canvas.addEventListener('mouseleave', () => {
+    imgOriginal.addEventListener('mouseleave', () => {
       isPanning = false;
     });
 
-    canvas.addEventListener('wheel', (e) => {
+    imgOriginal.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
+      const rect = imgOriginal.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
@@ -93,7 +82,7 @@ function main() {
       // Update zoom level
       zoomLevel = newZoomLevel;
 
-      drawOriginalImage(img, canvas);
+      updateOriginalImage(img);
     });
   }
 
@@ -141,8 +130,8 @@ function main() {
       img.onload = () => {
         zoomLevel = 1;
         panPosition = { x: 0, y: 0 };
-        drawOriginalImage(img, canvasOriginal);
-        setupPanAndZoom(canvasOriginal, img);
+        updateOriginalImage(img);
+        setupPanAndZoom(img);
         updateMesh(img);
       };
       img.src = e.target?.result as string;
@@ -269,21 +258,29 @@ function createLegacyCheckbox(parent: HTMLElement): HTMLInputElement {
 }
 
 // Canvas creation function
-function createCanvases(parent: HTMLElement) {
-  const [canvasOriginal, canvas3D] = ['original', '3d'].map((id) => {
-    const canvas = document.createElement('canvas');
-    canvas.id = id;
-    canvas.width = canvas.height = 500;
-    const container = document.createElement('div');
-    container.style.width = '500px';
-    container.style.height = '500px';
-    container.style.outline = '1px solid #030303';
-    container.style.overflow = 'hidden';
-    container.appendChild(canvas);
-    parent.appendChild(container);
-    return canvas;
-  });
-  return { canvasOriginal, canvas3D };
+function createImageAndCanvas(parent: HTMLElement) {
+  const imgContainer = document.createElement('div');
+  imgContainer.style.width = '500px';
+  imgContainer.style.height = '500px';
+  imgContainer.style.outline = '1px solid #030303';
+  imgContainer.style.overflow = 'hidden';
+
+  const imgOriginal = document.createElement('img');
+  imgOriginal.id = 'original';
+  imgContainer.appendChild(imgOriginal);
+  parent.appendChild(imgContainer);
+
+  const canvas3D = document.createElement('canvas');
+  canvas3D.id = '3d';
+  canvas3D.width = canvas3D.height = 500;
+  const canvas3DContainer = document.createElement('div');
+  canvas3DContainer.style.width = '500px';
+  canvas3DContainer.style.height = '500px';
+  canvas3DContainer.style.outline = '1px solid #030303';
+  canvas3DContainer.appendChild(canvas3D);
+  parent.appendChild(canvas3DContainer);
+
+  return { imgOriginal, canvas3D };
 }
 
 // Three.js setup function
